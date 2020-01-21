@@ -1,0 +1,225 @@
+Atari Black & White Vector Generator Theory of Operation
+
+    VECTOR ROM OR DISPLAY LIST CODE (as seen by the State Machine):
+
+    	Byte 1			    Byte 2
+    8  7  6  5  4  3  2  1 	8  7  6  5  4  3  2  1 	
+
+    |  |  |  |	|			    |  |  |  |
+    |  |  |  |	|			    |  +--+--+- Y length (or rise)
+    |  |  |  |	|			    |
+    |  |  |  |	+---------------------------+---------- Overall scale factor
+    |  |  |  |
+    |  |  |  |		       (8  7  6  5)
+    |  |  |  |			|  |  |  |
+    |  |  |  | 			+--+--+--+------------- Command (or scale)
+    |  |  |  |	  (3  2  1)
+    |  |  |  |	   |  |  |
+    |  |  |  |	   +--+--+----------------------------- X length (or run)
+    |  |  |  |
+    +--+--+--+----------------------------------------- Brightness
+
+
+    For the X and Y values, it's like taking the byte1bit4 and byte2bit4
+    bits and prepending them to EACH of the X and Y values (i.e. both
+    directions scale the same simultaneously.)  If a Y value is 111, and
+    the other two bits are 00, then it has a length of 7 units (which is
+    something like 1/1024th of the screen width if I recall correctly???),
+    but if those bits are 01, then it is twice as long, if they are 10 it
+    is 4 times as long, and if they are 11 it is 8 times as long.
+
+    The brightness is just 16 levels, the few bottom of which are all
+    invisible anyway, and the top couple of which all look the same, and of
+    course all of which depends on your monitor brightness setting!
+
+    The command-or-scale byte is the one I'm a tad hazy on.  Commands can
+    have the values A through F, and some of the other (lower) values have
+    some bearing on overall size, but not all of them do, and you can
+    easily make the state machine crash by playing around...
+
+    COMMAND NYBBLE:
+
+    A- Position the beam at the X/Ypos contained in these two bytes. 
+    	*RARELY* used in the ROM, since most drawing routines were subroutines
+    	to "draw relative to current beam position", but used by the program to
+    	position the beam for drawing each object.
+
+    B- HALT.  Usually placed at the end of the display list (and again,
+    		rarely if ever found in the ROM)
+
+    C- JSR.  This is a "state machine format" address in two bytes.
+
+    D- RTS.  Seen typically as 00 D0.  Lots of these in ROM, needless to
+    		say!   Can also be meshed with a drawing command to save 2
+    		bytes where possible.
+
+    E- JMP.  Jump absolute to the "state machine format" address contained
+    		in these two bytes.
+
+    F- Draw immediate.  I have no idea what this note to myself means...ALL
+    codes that aren't one of the special codes above are "draw immediate
+    using data contained in these bytes"!  I vaguely remember that maybe
+    the F-code lines were the smallest, 0 was next, then 1, and so on, but
+    invariably by the time you got to 9 it was too big...  Actually, maybe
+    F was just a drawing command, but the others also set an overall scale
+    factor, which applied to all further drawing commands, until a
+    different scale factor was set.  Or something like that...  Yeah, so
+    F=DRAW, 0-9= SET OVERALL SCALE TO LEVEL <0..9>.  That sounds about
+    right.
+
+
+    STATE MACHINE FORMAT ADDRESSES:
+    Whenever you had an address in a display list or a subroutine that was
+    going to be executed by the state machine, you had to format it NOT in
+    the realm of the 6502 addresses, but rather in the sense that made
+    sense to what the state machine could "see".  To turn a 6502-address
+    into a state machine address, start by subtracting $4000.  SO a
+    display-list address in the $4000's becomes a $0000's address.  A ROM
+    address in the $5000's becomes a $1000's address.  This is because of
+    how the addressing is wired.  Now shift right a bit because all state 
+    machine commands take two bytes, so we can save a bit here!  So for
+    instance, $5314 (0101 0011 0001 0100) has become $098A 
+    (000 1001 1000 1010)  Add the "C" command for instance for a JSR, and
+    now you have C9 8A.  Swap the bytes in little-endian fashion, and now
+    you have 8A C9, and you're done!  So if you ever see 8A C9 in a display
+    list or in the ROM, you know that's a State Machine "JSR $5314"
+    command.
+
+    Simple as that (cough cough)...
+
+
+    DISPLAY LISTS AND VECTOR ROMS:
+
+    The state machine processes commands it finds in the DISPLAY LIST,
+    which is an area of dual-port RAM addressed starting at $4000 (for the
+    6502; it's $0000 for the state machine!)  The State machine can munch
+    on this independently of the main processor's actions.  Consider it a
+    "display coprocessor".  So the main program can write drawing
+    instructions directly into the display list and create whatever it
+    wants.
+
+    But there are some things it knows it's going to want over and over and
+    over...like characters, and rocks, and ships, and explosion pictures,
+    and...  So those are saved in the vector ROM as callable SUBROUTINES
+    (all with an RTS [00 D0] command at the end).  SO the main program
+    writes some commands to the display list to position the beam, followed
+    by a "8A C9", which tells it to JSR $5314, i.e draw picture number 4 of
+    the player ship.  When the display list gets processed, it hits the JSR
+    and starts processing the commands at $5314 until it reaches RTS (00
+    D0), then it reverts to where it left off in the display list.  So the
+    stored shape subroutines are inherently RELATIVE- they draw a picture
+    by moving the beam in increments from wherever it happened to be when
+    the routine was invoked.
+
+    A QUICK MAP OF THE VECTOR ROMS (version 2/3):
+
+    $5000-$508F: test pattern direct draw instructions, ends in 00 00 which
+    I guess halts drawing?  Hmmmm
+
+    $5090-$50A3: JSR's to write "BANK ERROR" on the screen (final call is
+    actually JMP to the "R" routine.)
+
+    $50A4-$50DF: drawing instructions for copyright symbol, followed by
+    JSR's to write "1979 ATARI IN", followed by a JMP to $551A, which is
+    the routine for "C"
+
+    $50E0-$50EB: state machine commands for pieces of wrecked ship
+
+    $50EC-$50F7: ????  (Maybe more wrecked ship pieces)
+
+    $50F8-$50FF: JSR table for the various ship explosion pictures (the
+    main game uses this table, which is all compact and easily handled by
+    an indexed addressing instruction, so supply the JSR code for each of
+    the 4 explosion pictures, which take up too much room to allow direct
+    indexed addressing to them.  So it's inexed indirect addressing! 
+    Holy shades of later processors Batman!)
+
+    $5100-$512B,
+    $512C-$5169,
+    $516A-$519F,
+    $51A0-$51DD: four explosion pictures.
+
+    $51DE-$51E5: indirect JSR table for 4 rocks.
+
+    $51E6-$51FD: subroutine for rock with V notch in top (10 sides)
+    $51FE-$5219: subroutine for X-shaped rock (12 sides)
+    $521A-$5233: subroutine for with bottom and left notches (11 sides)
+    $5234-$524F: subroutine for rock with left and right notches (12 sides)
+
+    $5250-$5251: indirect JSR table (one entry long!) for saucer.
+
+    $5252-$526D: subroutine for saucer (preceeded in display list by sizing
+    		  instructions, to allow two types of saucers!)
+
+    $526D-$528F: table of addresses for the 17 different pictures of the
+    		player ship.  But they're in 6502 format!  But at least the
+    		nybbles are reversed...  17 pictures covered a 90 degree
+    		span (with a picture at BOTH axes and 15 in between), and
+    		then they just get mirrored about one or both axes to make 
+    		the others.  That explains the 6502-compatible address
+    		table!  It has to index into these routines and COPY THEM
+    		to the display list, altering them along the way for
+    		mirroring about an axis or two.
+
+    $5290-$54C1: 17 ship picture routines, spelled out individually in the
+    		table above.
+
+    $54C2-$54EF: Extra ship picture (as in "I have 43 extra ships")
+
+    $54F0-$56D3: subroutines for drawing character set (in A-Z, space, 1-9
+    		order)
+
+    $56D4-$571D: indirect table of addresses (state machine format) for the
+    		character set (in space, 0-9, A-Z order).  Yes, they just
+    		point the 0 entry at the routine for O!
+
+    $571E-$5728: table of "offset from $571E" for each of the messages
+
+    $5729-$57B8: 11 different canned messages, "Asteroids packed text"
+    		format.
+
+    $57B9-$57F9: table of values for, um, well, it escapes me at the
+    		moment.  Drag?  Thrust?  A smooth(ish) sweep from 00 to 7F
+		[Sin or cosine or something...]
+
+    $57FA-$57FF: all 00's.  This is the extra space!
+
+    Note that starting at $571E, this is stuff that belongs in the main
+    ROMS, but they obviously ran out of space!  Ooops....
+
+
+    ASTEROIDS PACKED TEXT FORMAT:
+
+    This belongs in a discussion about the main game, but since it happens
+    to be stored in the vector ROM, here goes!
+
+    Make a list, in the order space, 0-9, A-Z.  Assign space the value 01,
+    and go up from there.
+
+    Write your message down.  Now write the code from above for each
+    letter, but only the first 5 bits are used so write just those down. 
+    Now group the char's in threes, and add a "0" bit at the end of each
+    group of 3 (15 bits), and re-block back into two 8-bit bytes.  Use
+    those for two bytes of the message.  If your message is over, use the
+    code 00.  If your message does not contain a multiple of 3 characters,
+    use 0 *bits* as filler on the last byte for any missing characters,
+    this will also end the string.  (Any 00 code for a character ends the
+    string).  If you have an exact multiple of 3 characters, you can 
+    make the last BIT a one instead of the normal 0.  This saves a byte, so
+    you don't have to also add a 00 at the end!
+
+    Example:
+
+    "012"
+    = 00001 00010 00011 0
+    = 0000 1000 1000 0110
+    = 08 86
+
+    If it's in the middle of a string...or 08 87 to MARK the end of a
+    string with that very character.
+
+    That's it for tonight!  Next up, a memory map of $00-FF (scratchpad
+    space) and $200-$2FF (player state variables; replicated for player 2
+    in $300-$3FF)...and the cute trick they use to save code space when
+    dealing with 2 players!
+

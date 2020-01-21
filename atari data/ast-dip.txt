@@ -1,0 +1,31 @@
+Asteroids DIP Switch Settings
+
+Switch @ R6
+$ = Default
+
+                                  1    2    3    4    5    6    7    8
+                                _________________________________________
+Free Play                       |    |    |    |    |    |    | On | On |
+1 Coin for 2 Plays              |    |    |    |    |    |    |Off | On |
+1 Coin for 1 Play              $|    |    |    |    |    |    | On |Off |
+2 Coins for 1 Play              |    |    |    |    |    |    |Off |Off |
+                                |    |    |    |    |    |    |    |    |
+Left Coin Mechanism x 1        $|    |    |    | On |    |    |    |    |
+Left Coin Mechanism x 2         |    |    |    |Off |    |    |    |    |
+                                |    |    |    |    |    |    |    |    |
+Right Coin Mechanism x 1       $|    |    |    |    | On | On |    |    |
+Right Coin Mechanism x 4        |    |    |    |    |Off | On |    |    |
+Right Coin Mechanism x 5        |    |    |    |    | On |Off |    |    |
+                                |    |    |    |    |    |    |    |    |
+3 Ships per game               $|    |    |Off |    |    |    |    |    |
+4 Ships per Game                |    |    | On |    |    |    |    |    |
+                                |    |    |    |    |    |    |    |    |
+English                        $| On | On |    |    |    |    |    |    |
+German                          |Off | On |    |    |    |    |    |    |
+French                          | On |Off |    |    |    |    |    |    |
+Spanish                         |Off |Off |    |    |    |    |    |    |
+                                -----------------------------------------
+
+The 4 Switch DIP is used for the coin counter selection but I don't have 
+   the data.
+

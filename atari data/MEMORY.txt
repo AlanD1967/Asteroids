@@ -1,0 +1,135 @@
+          ASTEROIDS INTERNALS           -------------------------------------------------
+
+This document contains the memory layout and locations for Asteroids:
+
+First the ROM load locations, the ROM's listed here are version 2, but
+version 1 ROM's load at the same place and are the same length.  In fact,
+your emulator will be able to run either version with no changes.  The only
+difference, from your emulator's point of view, is the location of the game's
+high-score table (for saving/loading from disk).
+
+All addresses in this document refer to the 'virtual 6502' memory space and
+are given in HEX unless stated:
+
+----------------------------------------------------------------------------
+
+ROM LOAD LOCATIONS:
+-------------------
+
+  035127.02 --- State Machine ROM, 1000h bytes, ORG 5000h
+
+  035145.02 --- Game ROM, 0800h bytes, ORG 6800h
+  035144.02 --- Game ROM, 0800h bytes, ORG 7000h
+  035143.02 --- Game ROM, 0800h bytes, ORG 7800h
+
+----------------------------------------------------------------------------
+
+ASTEROIDS MEMORY LOCATIONS AND PURPOSE:
+---------------------------------------
+
+  2002h --- VECTOR HALT This address is used in the real Asteroids machine as
+                        a flag from the State Machine to signal that it's
+                        finished.  However; in emulation, it's easier to run
+                        your 'virtual State Machine' flat out when the 6502
+                        requests the next frame.  You should ZERO this
+                        location before running the 6502 code, then just
+                        ignore it.
+
+  2003h --- HYPERSPACE  SET BIT 7 to HYPERSPACE (hyperspace button)
+
+  2004h --- FIRE        SET BIT 7 to FIRE (fire button)
+
+  2007h --- SELF TEST   This address has something to do with the slam and or
+                        'Self Test' mode.  Just ZERO it before running the
+                        6502 code, then ignore it.
+
+  2400h --- COIN IN	SET BIT 7 to deposit a coin
+
+
+  2403h --- START 1P    SET BIT 7 for a one player game (player 1 button)
+
+  2404h --- START 2P    SET BIT 7 for a two player game (player 2 button)
+
+  2405h --- THRUST      SET BIT 7 to THRUST (thrust button)
+
+  2406h --- ROTATE R    SET BIT 7 to ROTATE RIGHT (rotate right button)
+
+  2407h --- ROTATE L    SET BIT 7 to ROTATE LEFT (rotate left button)
+
+
+  2800h --- DIPSW 8-7   The lower two bits of this address hold dip-switches
+                        8 and 7.
+
+  2801h --- DIPSW 6-5   The lower two bits of this address hold dip-switches
+                        6 and 5.
+
+  2802h --- DIPSW 4-3   The lower two bits of this address hold dip-switches
+                        4 and 3.
+
+  2803h --- DIPSW 2-1   The lower two bits of this address hold dip-switches
+                        2 and 1.
+
+  3000h --- VECTOR GO.  When Asteroids writes to this address run your VECTOR
+                        State Machine, which will then draw the next frame.
+                        The value written is not important, it's the 'write'
+                        that counts.
+
+  3200h --- BANK SWAP.  BIT 2 of this address is toggled to swap banks.  This
+                        is for the two player game.  Monitor this address and
+                        when Asteroids toggles BIT 2 just swap 100h bytes
+                        from address 200h to address 300h and vice-versa.
+                        The state of the BIT is not important, when it changes
+                        just perform the swap.
+
+  3600h --- EXPLOSION   The EXPLOSION circuit sound register.  The following
+                        values trigger the required explosion sound:
+
+                        03Dh --- Trigger LARGE explosion
+                        0FDh --- Trigger MEDIUM explosion
+                        0BDh --- Trigger SMALL explosion
+
+                        You may have to adjust these values up or down a
+                        couple to ensure the explosion happens every time and
+                        the explosion sound occurs when you die on re-entry
+                        from hyperspace.
+
+  3A00h --- HEARTBEAT   The HEARTBEAT circuit sound register.  Monitor BIT 4
+                        of this address, when it's SET check BIT 2, if BIT 2
+                        is SET play BEAT 2 else play BEAT 1.
+
+  3C00h --- SAUCER ON   Monitor BIT 7 of this address, when it's SET it means
+                        there is a SAUCER on screen so check 3C02h to find
+                        out which size of saucer and therefore which sound.
+                        Then just LOOP the sound until BIT 7 of this address
+                        becomes CLEAR.
+
+  3C01h --- UFO FIRE    Monitor this address, as soon as it becomes NON-ZERO
+                        start playing the UFO (SAUCER) FIRE sound.
+
+  3C02h --- SAUCER ON 2 When BIT 7 of 3C00h is SET check BIT 7 here, if it's
+                        SET start playing the LARGE SAUCER sound, else start
+                        playing the SMALL SAUCER sound.
+
+  3C03h --- THRUST      Monitor this address, when BIT 7 is SET loop the
+                        THRUST sound.
+
+  3C04h --- PLAYER FIRE Monitor this address, as soon as it becomes NON-ZERO
+                        start playing the PLAYER FIRE sound.
+
+  3C05h --- EXTRA LIFE  Whilst this address holds a NON-ZERO value just LOOP
+                        the EXTRA LIFE sound.
+
+----------------------------------------------------------------------------
+
+The HIGH-SCORE table is stored at the following addresses and is 53 bytes:
+
+  Version ONE rom:  0028h
+  Version TWO rom:  0029h
+
+----------------------------------------------------------------------------
+
+Asteroids doesn't use the IRQ's of the 6502 but DOES use the NMI.  It is very
+important to activate a 'virtual NMI' on your 6502 emulator approximately
+every 6250 cycles of the 6502.
+
+End.

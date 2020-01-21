@@ -1,0 +1,227 @@
+          ASTEROIDS INTERNALS 
+          -------------------------------------------------
+
+The  Atari  State  machine  is  a  small  computer  that accepts micro-code
+instructions for drawing vectors.  It is different from a standard computer
+in the  way  it  executes  its  instructions.   Instructions  are  executed
+odd-even addressing, thus:
+
+CPU, like a Z80, 6502, 80x86.. 4000h, 4001h, 4002h, 4003h, 4004h...  Etc.
+State Machine CPU............. 4001h, 4000h, 4003h, 4002h, 4005h...  Etc.
+
+It is important to get your head around this!!
+
+The  Atari  State  Machine  used in Asteroids has an area of RAM at address
+4000h in the 6502 CPU address space.  When the main Asteroids  code  issues
+the  command  to  the  State  Machine  it ALWAYS begins executing from this
+address.  To clarify, 6502  issues  a  GO  and  the  State  Machine  starts
+executing  its code from address 4000h in the 6502 address space.  When the
+State Machine hits its HALT instruction  it  stops.   If  the  6502  issued
+another  GO  instruction  it would begin again at address 4000h in the 6502
+address space.  Remember, in the real Asteroids machine the  State  Machine
+runs independent of the 6502.  In the emulator it doesn't!!
+
+A word on the address format used by the State Machine.  Although  its  RAM
+is  at address 4000h this is for the benefit of the 6502, the State Machine
+sees this RAM at address 0000h.  To calculate from a State Machine  address
+into its actual physical (6502 address space) address you do:
+
+  Actual Address = (State Address * 2) + 4000h
+
+For example, the state machine address 123h = physical (6502) address 4246h
+
+The  Asteroids  ROM  also contains a 2k STATE MACHINE ROM at (6502 address)
+5000h.  In fact, the first 2k  of  the  ASTEROID.ROM  file  is  this  STATE
+MACHINE ROM.  This is nothing more than lots of little subroutines that the
+Asteroid  code can build STATE MACHINE CALLS to in State Machine RAM. These
+subroutines contain State Machine micro-code to draw the rocks, spaceships,
+your ship Etc.
+
+Asteroids maintains two State Machine draw lists.  One at address 4000h and
+the  other  at  address  4400h.   It displays one whilst building the next.
+You don't need to worry about this, your State Machine engine just executes
+the micro-code at address 4000h EVERY time.  The second draw list is JMP'ed
+to in micro-code!
+
+State Machine instructions are always multiples of two.  So, in  emulation,
+you  can  grab  a word at a time from the State Machine RAM/ROM and decode.
+The State Machine OPCODES are stored in the top nibble of the ODD ADDRESSED
+byte.  All DRAW instructions  are  relative  to  the  last  position.   The
+OPCODES  and  their  functions are (ALL NUMBERS ARE HEX, except instruction
+format descriptions which are in BINARY and  are  shown  in  address  order
+I.E.:   4000h,  4001h, 4002h...  and NOT 4001h, 4000h, 4002h...  Individual
+BITS sometimes have a purpose, hence BINARY):
+
+OPCODE =  9 : Draw relative LONG vector
+          8 :  ~~     ~      ~~    ~~   (length / 2)
+          7 :  ~~     ~      ~~    ~~   (  ~~   / 4)
+          6 :  ~~     ~      ~~    ~~   (  ~~   / 8)
+          5 :  ~~     ~      ~~    ~~   (  ~~   / 16)
+          4 :  ~~     ~      ~~    ~~   (  ~~   / 32)
+          3 :  ~~     ~      ~~    ~~   (  ~~   / 64)
+          2 :  ~~     ~      ~~    ~~   (  ~~   / 128)
+          1 :  ~~     ~      ~~    ~~   (  ~~   / 256)
+
+  These are 4 byte micro-code instructions, format:
+
+     Byte 1     Byte 2      Byte 3     Byte 4
+    00000000  0000 0 0 00  00000000  0000 0 0 00
+       |      +--+ | | ++     |      +--+ | | ++
+       |      |    | | |      |      |    | | |
+       |   opcode  | | |      | intensity | | |
+       |           | | |      |           | | |
+   low Y length    | | |  low X length    | | |
+                   | | |                  | | |
+                   | | high Y length      | | high X length
+                   | |                    | |
+                   | Y sign               | X sign
+                   |                      |
+                   +------- unused -------+
+
+  So,  a relative LONG vector / 64 of X= -500 (decimal), Y=123 (decimal) at
+  intensity 12 (decimal) would look like this from the 6502's viewpoint:
+
+    01111011  0011 0 0 00  00001100  1100 0 1 10  (BINARY)
+       7B         30          0C         C6       (HEX)
+
+------------------------------------------------------------ More OPCODES:
+
+OPCODE =  A : Position BEAM and load overall scale factor.
+
+  This is a 4 byte micro-code instruction, format:
+
+     Byte 1     Byte 2    Byte 3     Byte 4
+    00000000  1010 0000  00000000  0000 0000
+       |      +--+ +--+     |      +--+ +--+
+       |      |    |        |      |    |
+       |   opcode  |        |    scale  |
+       |           high Y   |           high X
+     low Y                low X
+
+  The scale factor is the value applied to ALL vectors just before drawing,
+  it is decoded thus:
+
+    scale 0001 = vector length * 2      scale 0010 = vector length * 4
+      ~   0011 =   ~~     ~~   * 8        ~   0100 =   ~~     ~~   * 16
+      ~   0101 =   ~~     ~~   * 32       ~   0110 =   ~~     ~~   * 64
+      ~   0111 =   ~~     ~~   * 128
+
+    scale 1111 = vector length / 2      scale 1110 = vector length / 4
+      ~   1101 =   ~~     ~~   / 8        ~   1100 =   ~~     ~~   / 16
+      ~   1011 =   ~~     ~~   / 32       ~   1010 =   ~~     ~~   / 64
+      ~   1001 =   ~~     ~~   / 128
+
+  Possibly  the  easiest way to view this is that bit 3 is set for dividing
+  and reset for multiplying.  If you mask so as to leave just the low three
+  bits  you  can  use  these as the BINARY SHIFT factor (after NEGATING the
+  divide values first!)  The BEAM POSITION is absolute.  It  seems  0,0  is
+  either  the  top/left or bottom/left corner (I can't remember which as my
+  emulation code adjusts it for the PC (top/left) layout)
+
+------------------------------------------------------------ More OPCODES:
+
+OPCODE =  B : State Machine HALT instruction.
+
+  This is a 2 byte micro-code instruction, format:
+
+     Byte 1     Byte 2
+    00000000  1011 0000
+       |      +--+ +--+
+       |      |       |
+       |   opcode     |
+       |              |
+       +- Don't Care -+
+
+  Also  note,  a  ZERO  opcode  is  also  treated  as  HALT.   In fact, the
+  micro-code lists that the Asteroid program contains in its STATE  MACHINE
+  ROM are terminated with the ZERO form of the HALT instruction.  The lists
+  it builds in RAM use the B opcode form!
+
+------------------------------------------------------------ More OPCODES:
+
+OPCODE =  C : CALL subroutine.
+
+  This is a 2 byte micro-code instruction, format:
+
+     Byte 1     Byte 2
+    00000000  1100 0000
+       |      +--+ +--+
+       |      |       |
+       |   opcode     |
+       |          high address
+    low address
+
+  The address is in the State Machine format, the RETURN address stacked in
+  the State Machine stack is handled by the emulator and the actual address
+  is  stored  rather  than   the   State   Machine   format  address.   The
+  following example is a CALL to ACTUAL ADDRESS 4102h:
+
+    10000001  1100 0000  (BINARY)
+       81         C0     (HEX)
+
+  You can see, 81h * 2 + 4000h = 4102h
+
+------------------------------------------------------------ More OPCODES:
+
+OPCODE = D : RETURN from subroutine.
+
+  This is a 2 byte micro-code instruction, format:
+
+   Byte 1     Byte 2
+  00000000  1101 0000
+     |      +--+ +--+
+     |      |       |
+     |   opcode     |
+     |              |
+     +- Don't Care -+
+
+  This instruction is used to RETURN from a previous CALL.
+
+------------------------------------------------------------ More OPCODES:
+
+OPCODE = E  : JUMP to an address.
+
+  This is a 2 byte micro-code instruction, format:
+
+   Byte 1     Byte 2
+  00000000  1110 0000
+     |      +--+ +--+
+     |      |       |
+     |   opcode     |
+     |          high address
+  low address
+
+  This is the same as a CALL, except no return address is stacked.
+
+----------------------------------------------------------- Final OPCODE:
+
+OPCODE = F  : Draw relative SHORT vector.
+
+  This is a 2 byte micro-code instruction, format:
+
+    Byte 1       Byte 2
+  0000 0 0 00   1111 0 0 00
+  +--+ | | ++   +--+ | | ++
+  |    | |  |   |    | |  |
+  |    | |  | opcode | |  |
+  |    | |  |        | |  |
+  |    | |  X length | |  Y length
+  |    | |           | |
+  |    | X sign      | Y sign
+  |    |             |
+  |    +-------------+
+  |                  |
+  intensity          scale ----+
+                               |
+                               01 * 2
+                               10 * 4
+                               11 * 8
+
+  One is added to the SCALE and the effective scale runs: * 4, * 8 and * 16
+  The SCALE + 1 can be used as the number of  times  to  perform  a  BINARY
+  LEFT SHIFT of the X and Y lengths for the SHORT relative draw.
+
+That  concludes  the  State  Machine  micro-code  instruction  formats  and
+description of its RAM/ROM addressing.
+
+End.

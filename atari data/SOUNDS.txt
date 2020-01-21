@@ -1,0 +1,59 @@
+          ASTEROIDS INTERNALS           -------------------------------------------------
+
+The sound samples are 11025hz, 8-Bit Unsigned Mono.
+
+The samples are stored in SOUNDS.ZIP and are as follows:
+
+
+BEAT1    WAV           865  One of the 'Thump Thump' heartbeats
+BEAT2    WAV           902  The other 'Thump Thump' heartbeat
+
+EXTRAMAN WAV         1,472  'Extra Life' beep
+
+LSAUCER  WAV         1,901  'Large Saucer' on screen sound
+SSAUCER  WAV         1,413  'Small Saucer' on screen sound
+
+LARGEXPL WAV         9,562  'Large Rock' explosion
+MEDUMXPL WAV        10,894  'Medium Rock' explosion
+SMALLXPL WAV         9,601  'Small Rock' explosion
+
+YOURFIRE WAV         2,761  'Player Laser'
+UFOFIRE  WAV         2,555  'Saucer Laser'
+
+THRUST   WAV         1,005  'Player Thrust'
+
+
+Several of these samples 'loop'.  Just read the Asteroids memory location
+(check MEMORY.DOC) and when it signals the sound just keep playing the
+sample until the memory location is cleared by the Asteroids code.  The
+samples that 'loop' are:
+
+  The 'Extra Life' beep
+  Both 'Saucer' sounds
+  The 'Player Thrust' sound
+
+All the other samples are 'play until done'.  These can be interrupted and
+restarted by the Asteroids program.  For example, only one explosion can
+occur at any one time, but explosions can interrupt each other.  When an
+explosion is interrupted by another the original explosion is not continued
+after the 'new' explosion finishes.  Theoretically all samples can play at
+once as Asteroids used separate circuits for each sound, thus:
+
+  Explosion Circuit
+  Saucer Circuit
+  Your Fire Circuit
+  UFO Fire Circuit
+  Thrust Circuit
+  Heartbeat Circuit
+  Extra Life Circuit
+
+As you can see, a possible seven sounds at once.  But notice that there can
+only be one explosion, one saucer and one heartbeat at any one time because
+these sounds, like the three explosions for example, share a common circuit
+each.
+
+Check MEMORY.DOC to see what memory locations and what values trigger each
+sound.
+
+
+End.

@@ -1,0 +1,1 @@
+gcc asteroid.c 6502.c vector.c -mwindows -o Asteroid.exe -lalleg 
